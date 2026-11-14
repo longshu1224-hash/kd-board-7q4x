@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Board</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#fff;color:#000;font-family:"Noto Sans CJK SC","Source Han Sans SC","PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}
+  #app{position:absolute;top:0;left:0;right:0;bottom:11vh;padding:4vw 5vw}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:2vw;margin-bottom:3vw}
+  .hdr .t{font-size:11vw;font-weight:700;letter-spacing:-0.02em;line-height:1}
+  .hdr .d{font-size:3.6vw;text-align:right;line-height:1.4}
+  .big-clock{font-size:30vw;font-weight:700;text-align:center;line-height:1;margin-top:4vh;letter-spacing:-0.03em}
+  .big-date{font-size:5.5vw;text-align:center;margin-top:2vh}
+  .wx{display:flex;justify-content:space-between;border:2px solid #000;margin-top:5vh;padding:3vw}
+  .wx .now{font-size:13vw;font-weight:700;line-height:1}
+  .wx .desc{font-size:4.2vw;margin-top:1vw}
+  .wx .days{display:flex}
+  .wx .day{width:16vw;text-align:center;font-size:3.4vw;line-height:1.6;border-left:1px solid #000}
+  .cal{margin-top:4vh;width:100%;border-collapse:collapse;font-size:4.2vw;text-align:center}
+  .cal th{font-weight:400;padding:1vw 0;border-bottom:1px solid #000}
+  .cal td{padding:1.4vw 0}
+  .cal td.today{background:#000;color:#fff;font-weight:700}
+  .cal td.dim{color:#888}
+  .proj{border-top:1px solid #000;padding:3vw 0}
+  .proj .n{font-size:5.2vw;font-weight:700}
+  .proj .s{font-size:4.2vw;margin-top:1vw}
+  .proj .x{font-size:3.8vw;margin-top:1vw;color:#333}
+  .proj .x b{display:inline-block;border:1px solid #000;padding:0 1.2vw;margin-right:1.5vw;font-weight:400}
+  .lbl{font-size:3.6vw;letter-spacing:0.2em;margin-bottom:2vw}
+  .case h2{font-size:7vw;line-height:1.25;margin:2vw 0}
+  .case .p{font-size:4vw;color:#333}
+  .case .sum{font-size:4.6vw;line-height:1.6;margin-top:3vw}
+  .case ul{margin-top:3vw;padding-left:5vw;font-size:4.2vw;line-height:1.7}
+  .case img{width:100%;margin-top:2vw;filter:grayscale(1)}
+  .btn{display:inline-block;border:2px solid #000;padding:2vw 5vw;font-size:4.4vw;margin-top:4vw;margin-right:3vw}
+  .photo{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center}
+  .photo img{max-width:100%;max-height:100%}
+  .photo .cap{position:absolute;bottom:0;left:0;right:0;background:#fff;font-size:3.6vw;padding:1.5vw 5vw}
+  .empty{font-size:5vw;text-align:center;margin-top:30vh;color:#555}
+  #nav{position:absolute;left:0;right:0;bottom:0;height:11vh;display:flex;border-top:3px solid #000}
+  #nav div{flex:1;display:flex;align-items:center;justify-content:center;font-size:4.6vw;border-left:1px solid #000}
+  #nav div:first-child{border-left:0}
+  #nav div.on{background:#000;color:#fff}
+  .foot{position:absolute;bottom:1vw;right:5vw;font-size:2.8vw;color:#777}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="nav">
+  <div data-v="projects">项目</div>
+  <div data-v="calendar">日历</div>
+  <div data-v="photo">相框</div>
+  <div data-v="case">案例</div>
+</div>
+<script>
+(function(){
+  var TZ_OFFSET = 8; // 新加坡 UTC+8，不依赖 Kindle 系统时区
+  var LAT = 1.29, LON = 103.85;
+  var IDLE_MS = 10 * 60 * 1000;
+  var DATA = {projects:[],photos:[],case:null}, WX = null;
+  var manual = null, manualAt = 0, caseOpen = false, photoIdx = 0;
+  var qs = (location.search.match(/[?&]mode=(\w+)/) || [])[1];
+  if (qs) { manual = qs; manualAt = Date.now() + 365*864e5; }
+
+  function sg(){ var d = new Date(Date.now() + TZ_OFFSET*3600e3); return d; } // 用 UTC getter 读取
+  function p2(n){ return (n<10?'0':'') + n; }
+  var WD = ['日','一','二','三','四','五','六'];
+  function hm(d){ return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()); }
+  function ymd(d){ return d.getUTCFullYear() + '年' + (d.getUTCMonth()+1) + '月' + d.getUTCDate() + '日 星期' + WD[d.getUTCDay()]; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function wxText(c){
+    if (c===0) return '晴'; if (c<=2) return '多云'; if (c===3) return '阴';
+    if (c<=48) return '雾'; if (c<=57) return '毛毛雨'; if (c<=67) return '雨';
+    if (c<=82) return '阵雨'; if (c>=95) return '雷雨'; return '—';
+  }
+
+  function auto(){
+    var d = sg(), h = d.getUTCHours();
+    if (h >= 23 || h < 7) return 'night';
+    if (h === 9 && DATA.case && DATA.case.title) return 'case';
+    if (DATA.projects && DATA.projects.length) {
+      // 有项目时以项目为主，每小时的后 15 分钟换成日历/天气
+      return d.getUTCMinutes() >= 45 ? 'calendar' : 'projects';
+    }
+    // 没有项目：日历和相框每 10 分钟轮换
+    if (!DATA.photos || !DATA.photos.length) return 'calendar';
+    return (Math.floor(d.getUTCMinutes()/10) % 2) ? 'photo' : 'calendar';
+  }
+
+  function current(){
+    if (manual && Date.now() - manualAt < IDLE_MS) return manual;
+    manual = null; caseOpen = false;
+    return auto();
+  }
+
+  function header(title){
+    var d = sg();
+    var w = WX ? (Math.round(WX.current.temperature_2m) + '° ' + wxText(WX.current.weather_code)) : '';
+    return '<div class="hdr"><div class="t">' + hm(d) + '</div><div class="d">' + esc(title||'') + '<br>' + ymd(d) + '<br>新加坡 ' + w + '</div></div>';
+  }
+
+  function vWeather(){
+    if (!WX) return '<div class="wx"><div class="desc">天气加载中…</div></div>';
+    var c = WX.current, dl = WX.daily, s = '<div class="wx"><div><div class="now">' + Math.round(c.temperature_2m) + '°</div><div class="desc">' + wxText(c.weather_code) + ' · 湿度 ' + c.relative_humidity_2m + '%</div></div><div class="days">';
+    for (var i=0;i<3;i++){
+      s += '<div class="day">' + (i===0?'今天':(i===1?'明天':'后天')) + '<br>' + wxText(dl.weather_code[i]) + '<br>' + Math.round(dl.temperature_2m_min[i]) + '–' + Math.round(dl.temperature_2m_max[i]) + '°<br>雨 ' + dl.precipitation_probability_max[i] + '%</div>';
+    }
+    return s + '</div></div>';
+  }
+
+  function vCalendar(){
+    var d = sg(), y = d.getUTCFullYear(), m = d.getUTCMonth(), today = d.getUTCDate();
+    var first = new Date(Date.UTC(y,m,1)).getUTCDay(), days = new Date(Date.UTC(y,m+1,0)).getUTCDate();
+    var s = '<div class="big-clock">' + hm(d) + '</div><div class="big-date">' + ymd(d) + '</div>' + vWeather();
+    s += '<table class="cal"><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr><tr>';
+    for (var i=0;i<first;i++) s += '<td></td>';
+    for (var k=1;k<=days;k++){
+      s += '<td' + (k===today?' class="today"':'') + '>' + k + '</td>';
+      if ((first+k)%7===0 && k<days) s += '</tr><tr>';
+    }
+    return s + '</tr></table>';
+  }
+
+  function vProjects(){
+    var s = header('进行中 ' + DATA.projects.length + ' 个项目');
+    if (!DATA.projects.length) return s + '<div class="empty">目前没有待办项目</div>';
+    for (var i=0;i<DATA.projects.length;i++){
+      var p = DATA.projects[i];
+      s += '<div class="proj"><div class="n">' + esc(p.name) + '</div><div class="s">' + esc(p.stage) + '</div>' +
+           '<div class="x"><b>下一步</b>' + esc(p.next) + (p.due ? '　截止 ' + esc(p.due) : '') + '</div></div>';
+    }
+    return s;
+  }
+
+  function vCase(){
+    var c = DATA.case;
+    if (!c || !c.title) return header('今日案例') + '<div class="empty">今天的案例还没准备好</div>';
+    var s = header('今日案例') + '<div class="case"><div class="lbl">TODAY · CASE</div><h2>' + esc(c.title) + '</h2>' +
+            (c.place ? '<div class="p">' + esc(c.place) + '</div>' : '');
+    if (c.image) s += '<img src="' + esc(c.image) + '" alt="">';
+    s += '<div class="sum">' + esc(c.summary) + '</div>';
+    if (caseOpen && c.details && c.details.length){
+      s += '<ul>'; for (var i=0;i<c.details.length;i++) s += '<li>' + esc(c.details[i]) + '</li>'; s += '</ul>';
+      if (c.source) s += '<div class="p" style="margin-top:3vw">来源：' + esc(c.source) + '</div>';
+    }
+    s += '<div><span class="btn" id="caseToggle">' + (caseOpen ? '收起' : '看详情') + '</span><span class="btn" id="caseClose">不感兴趣</span></div></div>';
+    return s;
+  }
+
+  function vPhoto(){
+    if (!DATA.photos || !DATA.photos.length) return header('相框') + '<div class="empty">还没有照片<br>把照片发给 Claude 就会出现在这里</div>';
+    var ph = DATA.photos[photoIdx % DATA.photos.length];
+    var src = typeof ph === 'string' ? ph : ph.src, cap = typeof ph === 'string' ? '' : (ph.caption || '');
+    return '<div class="photo"><img src="' + esc(src) + '" alt="">' + (cap ? '<div class="cap">' + esc(cap) + '</div>' : '') + '</div>';
+  }
+
+  function vNight(){
+    var d = sg();
+    return '<div class="big-clock" style="margin-top:28vh">' + hm(d) + '</div><div class="big-date">' + ymd(d) + '</div>';
+  }
+
+  var lastHtml = '';
+  function render(){
+    var v = current(), html;
+    if (v === 'projects') html = vProjects();
+    else if (v === 'case') html = vCase();
+    else if (v === 'photo') html = vPhoto();
+    else if (v === 'night') html = vNight();
+    else html = vCalendar();
+    if (html !== lastHtml) { document.getElementById('app').innerHTML = html; lastHtml = html; }
+    var tabs = document.getElementById('nav').getElementsByTagName('div');
+    for (var i=0;i<tabs.length;i++) tabs[i].className = tabs[i].getAttribute('data-v') === v ? 'on' : '';
+    var t = document.getElementById('caseToggle'), x = document.getElementById('caseClose');
+    if (t) t.onclick = function(){ caseOpen = !caseOpen; manual = 'case'; manualAt = Date.now(); render(); };
+    if (x) x.onclick = function(){ manual = 'calendar'; manualAt = Date.now(); caseOpen = false; render(); };
+  }
+
+  document.getElementById('nav').onclick = function(e){
+    var v = e.target.getAttribute('data-v'); if (!v) return;
+    if (v === 'photo' && manual === 'photo') photoIdx++;
+    manual = v; manualAt = Date.now(); caseOpen = false; render();
+  };
+
+  function get(url, cb){
+    var x = new XMLHttpRequest();
+    x.onreadystatechange = function(){ if (x.readyState===4 && x.status===200) { try { cb(JSON.parse(x.responseText)); } catch(e){} } };
+    x.open('GET', url, true); x.send();
+  }
+  function loadData(){ get('data.json?t=' + Date.now(), function(j){ DATA = j; render(); }); }
+  function loadWx(){
+    get('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
+        '&current=temperature_2m,relative_humidity_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSingapore&forecast_days=3',
+        function(j){ WX = j; render(); });
+  }
+
+  loadData(); loadWx(); render();
+  setInterval(render, 30 * 1000);              // 时钟
+  setInterval(loadData, 15 * 60 * 1000);       // 项目 / 案例 / 照片
+  setInterval(loadWx, 30 * 60 * 1000);         // 天气
+  setInterval(function(){ photoIdx++; }, 10 * 60 * 1000);
+  setTimeout(function(){ location.reload(); }, 6 * 3600 * 1000); // 每 6 小时整页刷新一次，防止卡住
+})();
+</script>
+</body>
+</html>

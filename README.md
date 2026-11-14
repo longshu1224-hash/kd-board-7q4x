@@ -1,1 +1,2 @@
-# kd-board-7q4x
+# kd-board
+E-ink desk board.
