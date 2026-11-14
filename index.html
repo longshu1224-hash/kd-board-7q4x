@@ -12,16 +12,17 @@
   .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:1.2vh;height:11vh}
   .hdr .t{font-size:8vh;font-weight:700;line-height:1;letter-spacing:-0.02em}
   .hdr .d{font-size:2vh;text-align:right;line-height:1.5}
-  .big-clock{font-size:17vh;font-weight:700;text-align:center;line-height:1;height:18vh;letter-spacing:-0.03em}
+  .big-clock{font-size:30vw;font-weight:700;text-align:center;line-height:1.05;height:24vh;letter-spacing:-0.03em}
+  @media (min-aspect-ratio:4/5){.big-clock{font-size:21vh}}
   .big-date{font-size:2.8vh;text-align:center;height:4.5vh}
-  .wx{display:flex;justify-content:space-between;align-items:center;border:2px solid #000;height:15vh;padding:0 3vw}
-  .wx .now{font-size:7.5vh;font-weight:700;line-height:1}
+  .wx{display:flex;justify-content:space-between;align-items:center;border:2px solid #000;height:13vh;padding:0 3vw}
+  .wx .now{font-size:6.5vh;font-weight:700;line-height:1}
   .wx .desc{font-size:2.2vh;margin-top:0.6vh}
   .wx .days{display:flex}
   .wx .day{width:15vw;text-align:center;font-size:1.9vh;line-height:1.55;border-left:1px solid #000}
   .cal{margin-top:2vh;width:100%;border-collapse:collapse;font-size:2.4vh;text-align:center;table-layout:fixed}
-  .cal th{font-weight:400;height:4vh;border-bottom:1px solid #000}
-  .cal td{height:5vh}
+  .cal th{font-weight:400;height:3.5vh;border-bottom:1px solid #000}
+  .cal td{height:4.4vh}
   .cal td.today{background:#000;color:#fff;font-weight:700}
   .row{display:flex;align-items:center;height:8.2vh;border-bottom:1px solid #000}
   .row .no{width:7vw;font-size:3vh;font-weight:700}
@@ -52,6 +53,7 @@
 </head>
 <body>
 <div id="app"></div>
+<script src="photos.js"></script>
 <div id="nav">
   <div data-v="projects">项目</div>
   <div data-v="calendar">日历</div>
@@ -60,6 +62,8 @@
 </div>
 <script>
 (function(){
+  var LOCAL = location.protocol === 'file:';
+  var REMOTE = 'https://longshu1224-hash.github.io/kd-board-7q4x/';
   var TZ_OFFSET = 8; // 新加坡 UTC+8，不依赖 Kindle 系统时区
   var LAT = 1.29, LON = 103.85;
   var IDLE_MS = 10 * 60 * 1000;
@@ -214,7 +218,18 @@
     x.onreadystatechange = function(){ if (x.readyState===4 && x.status===200) { try { cb(JSON.parse(x.responseText)); } catch(e){} } };
     x.open('GET', url, true); x.send();
   }
-  function loadData(){ get('data.json?t=' + Date.now(), function(j){ DATA = j; render(); }); }
+  function applyData(j){
+    if (LOCAL && window.LOCAL_PHOTOS) j.photos = window.LOCAL_PHOTOS;
+    DATA = j; render();
+  }
+  function loadData(){
+    get((LOCAL ? REMOTE : '') + 'data.json?t=' + Date.now(), function(j){
+      try { localStorage.setItem('kdb', JSON.stringify(j)); } catch(e){}
+      applyData(j);
+    });
+  }
+  try { var c = localStorage.getItem('kdb'); if (c) applyData(JSON.parse(c)); } catch(e){}
+  if (LOCAL && window.LOCAL_PHOTOS) { DATA.photos = window.LOCAL_PHOTOS; photoIdx = Math.floor(Math.random()*window.LOCAL_PHOTOS.length); }
   function loadWx(){
     get('https://api.open-meteo.com/v1/forecast?latitude=' + LAT + '&longitude=' + LON +
         '&current=temperature_2m,relative_humidity_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSingapore&forecast_days=3',
