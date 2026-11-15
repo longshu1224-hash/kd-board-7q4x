@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow"><title>Board</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#fff}
+  /* 把竖着的屏幕当横屏用：iframe 宽高对调后旋转 90° */
+  iframe{position:absolute;border:0;width:100vh;height:100vw;top:0;left:100vw;transform-origin:0 0;transform:rotate(90deg)}
+  body.ccw iframe{left:0;top:100vh;transform:rotate(-90deg)}
+</style></head>
+<body>
+<script>
+  if (/[?&]dir=ccw/.test(location.search)) document.body.className = 'ccw';
+  var f = document.createElement('iframe');
+  f.src = 'index.html' + (location.search.replace(/dir=\w+&?/, '') || '');
+  document.body.appendChild(f);
+</script>
+</body></html>
