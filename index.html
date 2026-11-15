@@ -68,6 +68,12 @@
     .det .n{margin-top:2vh}
     #nav div{font-size:3.2vh}
   }
+  .tasks{margin-top:0.8vh}
+  .trow{display:flex;justify-content:space-between;align-items:center;height:5.6vh;border-bottom:1px solid #999;font-size:2.5vh}
+  .trow .tn{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:2vw}
+  .trow .st{font-size:2.1vh;border:1px solid #000;padding:0.2vh 1.6vw}
+  .trow .st.done{background:#000;color:#fff}
+  .row .cnt{font-size:2.1vh;font-weight:400;margin-left:2vw;color:#444}
 </style>
 </head>
 <body>
@@ -151,6 +157,16 @@
     return s + '</tr></table></div></div>';
   }
 
+  function tasksHtml(t){
+    if (!t || !t.length) return '';
+    var h = '<div class="k">分项进度</div><div class="tasks">';
+    for (var i=0;i<t.length;i++){
+      var st = t[i].status || '';
+      h += '<div class="trow"><span class="tn">' + esc(t[i].name) + '</span><span class="st' + (st==='已完成'?' done':'') + '">' + esc(st) + '</span></div>';
+    }
+    return h + '</div>';
+  }
+  function taskCount(t){ if (!t || !t.length) return ''; var d=0; for (var i=0;i<t.length;i++) if (t[i].status==='已完成') d++; return d + '/' + t.length; }
   var PER_PAGE = (window.innerWidth > window.innerHeight) ? 7 : 8, projPage = 0, projSel = -1;
   function vProjects(){
     var L = DATA.projects || [];
@@ -161,6 +177,7 @@
         (p.stage ? '<div class="k">当前内容</div><div class="v">' + esc(p.stage) + '</div>' : '') +
         (p.next ? '<div class="k">下一步</div><div class="v">' + esc(p.next) + '</div>' : '') +
         (p.due ? '<div class="k">截止</div><div class="v">' + esc(p.due) + '</div>' : '') +
+        tasksHtml(p.tasks) +
         '<div><span class="btn" id="projBack">‹ 返回列表</span></div></div>';
     }
     var s = header('进行中 ' + L.length + ' 个项目');
@@ -169,6 +186,7 @@
     for (var i = projPage*PER_PAGE; i < Math.min(L.length, (projPage+1)*PER_PAGE); i++){
       var q = L[i];
       s += '<div class="row" data-i="' + i + '"><div class="no" data-i="' + i + '">' + (i+1) + '</div><div class="n" data-i="' + i + '">' + esc(q.name) +
+           (q.tasks && q.tasks.length ? '<span class="cnt">' + taskCount(q.tasks) + '</span>' : '') +
            '</div><div class="st' + (q.status==='已完成'?' done':'') + '" data-i="' + i + '">' + esc(q.status) + '</div><div class="ar" data-i="' + i + '">›</div></div>';
     }
     if (pages > 1) s += '<div class="pager"><span class="btn" id="pgPrev" style="margin:0">‹ 上一页</span><span>' + (projPage+1) + ' / ' + pages + '</span><span class="btn" id="pgNext" style="margin:0">下一页 ›</span></div>';
@@ -257,7 +275,7 @@
 
   loadData(); loadWx(); render();
   setInterval(render, 30 * 1000);              // 时钟
-  setInterval(loadData, 15 * 60 * 1000);       // 项目 / 案例 / 照片
+  setInterval(loadData, 5 * 60 * 1000);       // 项目 / 案例 / 照片
   setInterval(loadWx, 30 * 60 * 1000);         // 天气
   setInterval(function(){ photoIdx++; }, 10 * 60 * 1000);
   setTimeout(function(){ location.reload(); }, 6 * 3600 * 1000); // 每 6 小时整页刷新一次，防止卡住
