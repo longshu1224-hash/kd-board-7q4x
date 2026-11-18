@@ -74,6 +74,17 @@
   .trow .st{font-size:2.1vh;border:1px solid #000;padding:0.2vh 1.6vw}
   .trow .st.done{background:#000;color:#fff}
   .row .cnt{font-size:2.1vh;font-weight:400;margin-left:2vw;color:#444}
+  body.is-night #nav{display:none}
+  body.is-night #app{bottom:0;padding:0}
+  .night{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .night .nh,.night .nm{font-size:42vh;font-weight:700;line-height:0.95;letter-spacing:-0.04em}
+  .night .nl{display:none;font-size:31vw;font-weight:700;line-height:1;letter-spacing:-0.04em}
+  .night .nd{font-size:2.6vh;margin-top:2vh;color:#333}
+  @media (min-aspect-ratio:1/1){
+    .night .nh,.night .nm{display:none}
+    .night .nl{display:block}
+    .night .nd{font-size:3.4vh}
+  }
 </style>
 </head>
 <body>
@@ -83,7 +94,6 @@
   <div data-v="projects">项目</div>
   <div data-v="calendar">日历</div>
   <div data-v="photo">相框</div>
-  <div data-v="case">案例</div>
 </div>
 <script>
 (function(){
@@ -91,7 +101,7 @@
   var REMOTE = 'https://longshu1224-hash.github.io/kd-board-7q4x/';
   var TZ_OFFSET = 8; // 新加坡 UTC+8，不依赖 Kindle 系统时区
   var LAT = 1.29, LON = 103.85;
-  var IDLE_MS = 10 * 60 * 1000;
+  var IDLE_MS = 2 * 60 * 1000;
   var DATA = {projects:[],photos:[],case:null}, WX = null;
   var manual = null, manualAt = 0, caseOpen = false, photoIdx = 0;
   var qs = (location.search.match(/[?&]mode=(\w+)/) || [])[1];
@@ -113,14 +123,12 @@
   function auto(){
     var d = sg(), h = d.getUTCHours();
     if (h >= 23 || h < 7) return 'night';
-    if (h === 9 && DATA.case && DATA.case.title) return 'case';
-    if (DATA.projects && DATA.projects.length) {
-      // 有项目时以项目为主，每小时的后 15 分钟换成日历/天气
-      return d.getUTCMinutes() >= 45 ? 'calendar' : 'projects';
-    }
-    // 没有项目：日历和相框每 10 分钟轮换
-    if (!DATA.photos || !DATA.photos.length) return 'calendar';
-    return (Math.floor(d.getUTCMinutes()/10) % 2) ? 'photo' : 'calendar';
+    // 每 10 分钟一轮：项目 1 分钟（10%）→ 日历 4 分钟（40%）→ 相框 5 分钟（50%）
+    var m = d.getUTCMinutes() % 10;
+    var hasPhoto = DATA.photos && DATA.photos.length;
+    if (m < 1) return 'projects';
+    if (m < 5 || !hasPhoto) return 'calendar';
+    return 'photo';
   }
 
   function current(){
@@ -216,8 +224,8 @@
   }
 
   function vNight(){
-    var d = sg();
-    return '<div class="big-clock" style="margin-top:28vh">' + hm(d) + '</div><div class="big-date">' + ymd(d) + '</div>';
+    var d = sg(), H = p2(d.getUTCHours()), M = p2(d.getUTCMinutes());
+    return '<div class="night"><div class="nh">' + H + '</div><div class="nm">' + M + '</div><div class="nl">' + H + ':' + M + '</div><div class="nd">' + ymd(d) + '</div></div>';
   }
 
   var lastHtml = '';
@@ -229,6 +237,7 @@
     else if (v === 'night') html = vNight();
     else html = vCalendar();
     if (html !== lastHtml) { document.getElementById('app').innerHTML = html; lastHtml = html; }
+    document.body.className = (v === 'night') ? 'is-night' : '';
     var tabs = document.getElementById('nav').getElementsByTagName('div');
     for (var i=0;i<tabs.length;i++) tabs[i].className = tabs[i].getAttribute('data-v') === v ? 'on' : '';
     var t = document.getElementById('caseToggle'), x = document.getElementById('caseClose');
@@ -236,6 +245,7 @@
     if (x) x.onclick = function(){ manual = 'calendar'; manualAt = Date.now(); caseOpen = false; render(); };
     var app = document.getElementById('app');
     app.onclick = function(e){
+      if (document.body.className === 'is-night') { manual = 'calendar'; manualAt = Date.now(); render(); return; }
       var t = e.target, i = t.getAttribute && t.getAttribute('data-i');
       if (i !== null && i !== undefined && i !== '') { projSel = +i; manual = 'projects'; manualAt = Date.now(); render(); return; }
       if (t.id === 'projBack') { projSel = -1; manual = 'projects'; manualAt = Date.now(); render(); return; }
